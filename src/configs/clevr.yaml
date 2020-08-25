@@ -9,9 +9,9 @@ logdir: '../output/logs'
 checkpointdir: '../output/checkpoints'
 evaldir: '../output/eval/'
 
-dataset: 'OBJ3D_SMALL'
+dataset: 'CLEVR'
 dataset_roots:
-  OBJ3D_SMALL: '/home/qsxyh123/Developing/SPACE/data/OBJ3D_SMALL/'
+  CLEVR: '/home/qsxyh123/Developing/multi_object_datasets'
 
 
 # For engine.train
@@ -20,19 +20,19 @@ train:
   max_epochs: 1000
   max_steps: 320000
   print_every: 200
-  save_every: 1575
+  save_every: 2000
   num_workers: 4
   clip_norm: 1.0
   max_ckpt: 100
   eval_on: true
-  eval_every: 1575
+  eval_every: 2000
   solver:
     fg:
       optim: 'RMSprop'
-      lr: 5e-6
+      lr: 1e-5
     bg:
       optim: 'Adam'
-      lr: 5e-4
+      lr: 1e-3
 
 # For engine.eval
 eval:

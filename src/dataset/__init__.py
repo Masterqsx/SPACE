@@ -1,5 +1,6 @@
 from .atari import Atari
 from .obj3d import Obj3D
+from .clevr import CLEVR
 from torch.utils.data import DataLoader
 
 
@@ -11,9 +12,11 @@ def get_dataset(cfg, mode):
         mode = 'validation' if mode == 'val' else mode
         return Atari(cfg.dataset_roots.ATARI, mode, gamelist=cfg.gamelist)
     elif cfg.dataset == 'OBJ3D_SMALL':
-        return Obj3D(cfg.dataset_roots.OBJ3D_SMALL, mode)
+        return Obj3D(cfg, "small", mode)
     elif cfg.dataset == 'OBJ3D_LARGE':
-        return Obj3D(cfg.dataset_roots.OBJ3D_LARGE, mode)
+        return Obj3D(cfg, "large", mode)
+    elif cfg.dataset == 'CLEVR':
+        return CLEVR(cfg, mode)
 
 def get_dataloader(cfg, mode):
     assert mode in ['train', 'val', 'test']
@@ -23,7 +26,7 @@ def get_dataloader(cfg, mode):
     num_workers = getattr(cfg, mode).num_workers
     
     dataset = get_dataset(cfg, mode)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, drop_last=True, collate_fn=dataset.collate_fn)
     
     return dataloader
     

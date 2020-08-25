@@ -92,15 +92,18 @@ class SpaceEval():
         num_workers = eval_cfg.train.num_workers
         
         model.eval()
-        valset = Subset(valset, indices=range(num_samples))
-        dataloader = DataLoader(valset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+        # valset = Subset(valset, indices=range(num_samples))
+        dataloader = DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=0,
+                                              drop_last=True, collate_fn=valset.collate_fn)
+        #dataloader = DataLoader(valset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
     
         metric_logger = MetricLogger()
     
         print(f'Evaluating MSE using {num_samples} samples.')
+        n_batch = 0
         with tqdm(total=num_samples) as pbar:
             for batch_idx, sample in enumerate(dataloader):
-                imgs = sample.to(device)
+                imgs = sample[0].to(device)
                 loss, log = model(imgs, global_step)
                 B = imgs.size(0)
                 for b in range(B):
@@ -108,9 +111,11 @@ class SpaceEval():
                         mse=log['mse'][b],
                     )
                 metric_logger.update(loss=loss.mean())
-                pbar.update(B)
-    
-        assert metric_logger['mse'].count == num_samples
+                pbar.update(1)
+                n_batch += 1
+                if n_batch >= num_samples: break
+
+        # assert metric_logger['mse'].count == num_samples
         # Add last log
         # log.update([(k, torch.tensor(v.global_avg)) for k, v in metric_logger.values.items()])
         mse = metric_logger['mse'].global_avg
@@ -119,6 +124,9 @@ class SpaceEval():
         model.train()
         
         return mse
+
+    def bb_transform(self, bbs):
+        return [ [[bb[1]/128, bb[3]/128, bb[0]/128, bb[2]/128] for bb in bbs_per_batch] for bbs_per_batch in bbs]
 
     def eval_ap_and_acc(
             self,
@@ -153,20 +161,24 @@ class SpaceEval():
         
         if num_samples is None:
             num_samples = len(dataset)
-        dataset = Subset(dataset, indices=range(num_samples))
-        dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+        # dataset = Subset(dataset, indices=range(num_samples))
+        #dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0,
+                                              drop_last=True, collate_fn=dataset.collate_fn)
         
         if iou_thresholds is None:
             iou_thresholds = np.linspace(0.5, 0.95, 10)
-        boxes_gt = read_boxes(bb_path, 128)
-    
+        # boxes_gt = read_boxes(bb_path, 128)
+        boxes_gt = []
         boxes_pred = []
         model.eval()
+        n_batch = 0
         with torch.no_grad():
             print('Computing boxes...')
             pbar = tqdm(total=len(dataloader))
-            for i, imgs in enumerate(dataloader):
-                imgs = imgs.to(device)
+            for i, data in enumerate(dataloader):
+
+                imgs = data[0].to(device)
             
                 # TODO: treat global_step in a more elegant way
                 loss, log = \
@@ -178,12 +190,15 @@ class SpaceEval():
                 z_where = z_where.detach().cpu()
                 z_pres_prob = z_pres_prob.detach().cpu().squeeze()
                 # TODO: look at this
-                z_pres = z_pres_prob > 0.5
-            
+                z_pres = z_pres_prob > 0.1
+                # z_pres = log['z_pres']
                 boxes_batch = convert_to_boxes(z_where, z_pres, z_pres_prob)
                 boxes_pred.extend(boxes_batch)
+                boxes_gt.extend(self.bb_transform(data[2]))
                 pbar.update(1)
-        
+                n_batch += 1
+                if n_batch >= num_samples: break
+
             print('Computing error rates and counts...')
             # Four numbers
             error_rate, perfect, overcount, undercount = compute_counts(boxes_pred, boxes_gt)

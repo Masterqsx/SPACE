@@ -70,7 +70,7 @@ def train(cfg):
             start = end
         
             model.train()
-            imgs = data
+            imgs = data[0]
             imgs = imgs.to(cfg.device)
             loss, log = model(imgs, global_step)
             # In case of using DataParallel
